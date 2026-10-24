@@ -32,11 +32,11 @@ describe('todo validation', () => {
   it.each(['0', '-1', '1.5', 'abc', '9007199254740992'])('rejects invalid id %s', (id) => {
     expect(idSchema.safeParse(id).success).toBe(false);
   });
-  it.each([{}, { today: '2026-10-15' }, { today: '2024-02-29' }])('accepts a statistics query: %j', (query) => {
+  it.each([{ today: '2026-10-15' }, { today: '2024-02-29' }])('accepts a statistics query: %j', (query) => {
     expect(statsQuerySchema.parse(query)).toEqual(query);
   });
   it.each([
-    { today: '2026-02-30' }, { today: '2025-02-29' }, { today: '2026-10-15T00:00:00Z' },
+    {}, { today: '2026-02-30' }, { today: '2025-02-29' }, { today: '2026-10-15T00:00:00Z' },
     { today: '' }, { today: ['2026-10-15'] }, { other: '1' },
   ])('rejects an invalid statistics query: %j', (query) => {
     expect(statsQuerySchema.safeParse(query).success).toBe(false);

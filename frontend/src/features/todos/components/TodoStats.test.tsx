@@ -35,6 +35,15 @@ it('uses the singular form for a single task', () => {
   expect(screen.getByText('1 task')).toBeVisible()
 })
 
+it('celebrates when every task is completed', () => {
+  render(
+    <TodoStats stats={{ total: 2, completed: 2, active: 0, overdue: 0 }} />,
+  )
+  expect(screen.getByText('All done!')).toBeVisible()
+  expect(screen.queryByText(/to do/)).not.toBeInTheDocument()
+  expect(screen.getByText('2 completed')).toBeVisible()
+})
+
 it('hides the overdue badge when nothing is overdue', () => {
   render(<TodoStats stats={{ ...stats, overdue: 0 }} />)
   expect(screen.queryByText(/overdue/)).not.toBeInTheDocument()

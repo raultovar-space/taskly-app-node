@@ -40,20 +40,7 @@ it('returns task statistics for the requested day', async () => {
   expect(repository.stats).toHaveBeenCalledWith('2026-10-15');
   expect(repository.get).not.toHaveBeenCalled();
 });
-it('defaults statistics to the current UTC day when no day is given', async () => {
-  vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date('2026-10-20T23:30:00.000Z'));
-  try {
-    const { app, repository } = setup();
-    const response = await request(app).get('/api/todos/stats');
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual(stats);
-    expect(repository.stats).toHaveBeenCalledWith('2026-10-20');
-  } finally {
-    vi.useRealTimers();
-  }
-});
-it.each(['today=2026-02-30', 'today=2026-10-15T00:00:00Z', 'today=yesterday', 'other=1'])(
+it.each(['', 'today=2026-02-30', 'today=2026-10-15T00:00:00Z', 'today=yesterday', 'other=1'])(
   'rejects invalid statistics query %s without calling the repository', async (query) => {
     const { app, repository } = setup();
     const response = await request(app).get(`/api/todos/stats?${query}`);
