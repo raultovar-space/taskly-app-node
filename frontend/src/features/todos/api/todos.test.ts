@@ -27,3 +27,36 @@ it('sends only writable task fields on creation', async () => {
     }),
   })
 })
+
+it('sends only writable task fields when updating a task', async () => {
+  const saved = { ...todoFixture, completed: true }
+  vi.mocked(request).mockResolvedValue(saved)
+  await expect(
+    todosApi.update(todoFixture.id, { ...todoFixture, completed: true }),
+  ).resolves.toEqual(saved)
+  expect(request).toHaveBeenCalledWith(`/todos/${todoFixture.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      title: todoFixture.title,
+      description: '',
+      priority: 'medium',
+      due_date: null,
+      completed: true,
+    }),
+  })
+})
+
+it('omits fields absent from a partial update', async () => {
+  vi.mocked(request).mockResolvedValue(todoFixture)
+  await todosApi.update(3, { completed: true })
+  expect(request).toHaveBeenCalledWith('/todos/3', {
+    method: 'PATCH',
+    body: JSON.stringify({ completed: true }),
+  })
+})
+
+it('deletes a task by id', async () => {
+  vi.mocked(request).mockResolvedValue(undefined)
+  await expect(todosApi.remove(5)).resolves.toBeUndefined()
+  expect(request).toHaveBeenCalledWith('/todos/5', { method: 'DELETE' })
+})

@@ -1,0 +1,41 @@
+{
+  "decision": "tests_updated",
+  "summary": "Coverage run for backend/src/core/database.ts. createDatabase was already exercised by the repository tests, but initialize had no test. I added two cases to backend/tests/repository.test.ts: one checks that a single idempotent CREATE TABLE IF NOT EXISTS todos statement runs, and one checks that schema-initialization errors are passed on to the caller. All 50 backend tests pass, typecheck is clean, and database.ts is at 100% line and branch coverage.",
+  "files": [
+    {
+      "source": "backend/src/core/database.ts",
+      "decision": "update",
+      "testFile": "backend/tests/repository.test.ts",
+      "rationale": "The existing repository tests already used createDatabase but never called initialize, so I added cases for its successful run and for an error being passed through.",
+      "testsAdded": 2
+    }
+  ],
+  "skillsUsed": [
+    "analyze-pr-changes",
+    "backend-unit-tests",
+    "run-and-verify-tests",
+    "report-test-results"
+  ],
+  "testRuns": [
+    {
+      "package": "backend",
+      "total": 50,
+      "passed": 50,
+      "failed": 0,
+      "repairRounds": 0
+    }
+  ],
+  "findings": [
+    {
+      "severity": "info",
+      "file": "backend/src/core/database.ts",
+      "message": "Total backend coverage is about 34% lines because other modules, such as lifespan.ts, are only partly covered. Those modules were outside this plan. Coverage thresholds still pass."
+    }
+  ],
+  "meta": {
+    "turns": 18,
+    "costUsd": 0.1780474,
+    "durationMs": 42472,
+    "permissionDenials": 0
+  }
+}

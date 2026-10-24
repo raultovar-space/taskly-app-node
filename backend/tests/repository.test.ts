@@ -1,6 +1,7 @@
 import { afterEach, it, expect, vi } from 'vitest';
-import { createDatabase } from '../src/core/database.ts';
+import { createDatabase, initialize } from '../src/core/database.ts';
 import { TodoRepository } from '../src/features/todos/repository.ts';
+import type { Database } from '../src/features/todos/types.ts';
 import { record, todo } from './fixture.ts';
 
 afterEach(() => vi.restoreAllMocks());
@@ -74,6 +75,21 @@ it('deletes tasks and handles missing tasks', async () => {
   expect(await repository.delete(1)).toBe(true);
   expect(remove).toHaveBeenCalledWith({ where: { id: 1 } });
   expect(await repository.delete(1)).toBe(false);
+});
+
+it('initializes the todos table once with an idempotent CREATE TABLE statement', async () => {
+  const $executeRaw = vi.fn().mockResolvedValue(0);
+  await expect(initialize({ $executeRaw } as unknown as Database)).resolves.toBeUndefined();
+  expect($executeRaw).toHaveBeenCalledTimes(1);
+  const sql = ($executeRaw.mock.calls[0][0] as TemplateStringsArray).join('');
+  expect(sql).toContain('CREATE TABLE IF NOT EXISTS todos');
+  expect(sql).toContain("CHECK (priority IN ('low', 'medium', 'high'))");
+  expect($executeRaw.mock.calls[0]).toHaveLength(1);
+});
+
+it('propagates errors while initializing the schema', async () => {
+  const $executeRaw = vi.fn().mockRejectedValue(new Error('Permission denied'));
+  await expect(initialize({ $executeRaw } as unknown as Database)).rejects.toThrow('Permission denied');
 });
 
 it('propagates database errors', async () => {

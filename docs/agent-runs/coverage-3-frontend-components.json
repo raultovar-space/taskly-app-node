@@ -1,0 +1,91 @@
+{
+  "decision": "tests_created_and_updated",
+  "summary": "Coverage mode for 7 todo UI files. I added a new test file for TodoEmptyState and extended the existing tests for TodosPage, DeleteTodoDialog, TodoEditor, TodoForm, TodoItem and TodoList. All 126 frontend tests and typecheck pass, and all 7 files are now at 100% line and branch coverage (they started between 0% and 90% lines and 0% and 63.63% branches).",
+  "files": [
+    {
+      "source": "frontend/src/features/todos/TodosPage.tsx",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/TodosPage.test.tsx",
+      "rationale": "The existing test only covered the query-error retry path. The new tests cover the toggle success notices, the toggle failure, the busy guard, the toggle error winning over the query error, the disabled header and retry button, the editor and delete dialog flows, and what is passed to filters, list and notice.",
+      "testsAdded": 13
+    },
+    {
+      "source": "frontend/src/features/todos/components/DeleteTodoDialog.tsx",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/components/DeleteTodoDialog.test.tsx",
+      "rationale": "Only the cancel and error-display path was tested. The new tests cover a successful delete, a failed delete that keeps the dialog open, the busy and pending disabled states with the 'Deleting…' label, and the guard against a second delete.",
+      "testsAdded": 4
+    },
+    {
+      "source": "frontend/src/features/todos/components/TodoEditor.tsx",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/components/TodoEditor.test.tsx",
+      "rationale": "Only creating a task was tested. The new tests cover editing a task, a failed save, choosing which mutation's error is shown, the busy and pending guards, starting with an empty form for a new task, and closing from the form or the drawer.",
+      "testsAdded": 7
+    },
+    {
+      "source": "frontend/src/features/todos/components/TodoEmptyState.tsx",
+      "decision": "create",
+      "testFile": "frontend/src/features/todos/components/TodoEmptyState.test.tsx",
+      "rationale": "This file had no tests. The new tests cover both hasTodos states (heading, text, whether the button appears) and the button being disabled.",
+      "testsAdded": 3
+    },
+    {
+      "source": "frontend/src/features/todos/components/TodoForm.tsx",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/components/TodoForm.test.tsx",
+      "rationale": "Only blank-title validation and a basic submit were tested. The new tests cover prefilled values when editing, setting and clearing the due date (cleared sends null), the description length error, the server-error alert shown or hidden, cancel, and the busy/'Saving…' state.",
+      "testsAdded": 6
+    },
+    {
+      "source": "frontend/src/features/todos/components/TodoItem.tsx",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/components/TodoItem.test.tsx",
+      "rationale": "Branch coverage was 35.71% because only an active task with no description and no due date was rendered. The new tests cover completed vs active, the description, upcoming, overdue and completed-past-due dates (with the clock fixed), toggle, delete and the busy state.",
+      "testsAdded": 9
+    },
+    {
+      "source": "frontend/src/features/todos/components/TodoList.tsx",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/components/TodoList.test.tsx",
+      "rationale": "Only loading and empty states were tested. The new tests cover the 'unavailable' state, keeping cached tasks after a failed refetch, rendering the list and passing the right task to each callback, busy forwarding, and the props given to the empty state.",
+      "testsAdded": 5
+    }
+  ],
+  "skillsUsed": [
+    "analyze-pr-changes",
+    "frontend-unit-tests",
+    "run-and-verify-tests",
+    "report-test-results"
+  ],
+  "testRuns": [
+    {
+      "package": "frontend",
+      "total": 126,
+      "passed": 126,
+      "failed": 0,
+      "repairRounds": 2
+    }
+  ],
+  "findings": [
+    {
+      "severity": "info",
+      "file": "frontend/src/features/todos/components/DeleteTodoDialog.test.tsx",
+      "message": "The `if (pending) return` guard in remove() can't be reached from the UI because the Delete button is already disabled when pending. The test calls the mocked Button's onClick directly to cover it. This is defensive code, not a bug."
+    },
+    {
+      "severity": "info",
+      "message": "The static child-component mocks in TodosPage.test.tsx, TodoList.test.tsx and TodoEditor.test.tsx were changed to vi.fn components with interactive controls so callbacks and props can be checked. Existing tests and assertions were kept as they were."
+    },
+    {
+      "severity": "info",
+      "message": "frontend/vite.config.ts doesn't set clearMocks, so the edited test files call vi.clearAllMocks() in beforeEach. This keeps the shared design-system mocks (vi.fn) isolated between tests."
+    }
+  ],
+  "meta": {
+    "turns": 52,
+    "costUsd": 1.3677572,
+    "durationMs": 289441,
+    "permissionDenials": 0
+  }
+}

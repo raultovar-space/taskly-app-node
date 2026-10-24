@@ -1,0 +1,80 @@
+{
+  "decision": "tests_created_and_updated",
+  "summary": "Coverage mode: I added tests for the backend entry point, app factory, health router, config and lifespan modules, and extended the todos router tests with the GET/PATCH/DELETE by-id routes and id validation. The final gate passed typecheck and all 99 backend tests (0 failed), and the coverage thresholds passed. Five of the six target files are at 100% lines and branches. factory.ts is at 100% lines and 92.85% branches, above the 90% target.",
+  "files": [
+    {
+      "source": "backend/src/factory.ts",
+      "decision": "create",
+      "testFile": "backend/tests/factory.test.ts",
+      "rationale": "No test covered createApp; the new tests cover router mounting, the x-powered-by header being off, /openapi.json, /docs, the JSON 404, malformed JSON giving 422, an oversized body giving 413, and unexpected errors (Error, string, unknown type) giving 500.",
+      "testsAdded": 11
+    },
+    {
+      "source": "backend/src/main.ts",
+      "decision": "create",
+      "testFile": "backend/tests/main.test.ts",
+      "rationale": "The entry point had no test; the new tests cover a successful start and a failed start, where it logs the error and sets process.exitCode to 1, with start() mocked.",
+      "testsAdded": 2
+    },
+    {
+      "source": "backend/src/api/health.ts",
+      "decision": "create",
+      "testFile": "backend/tests/health.test.ts",
+      "rationale": "The health router had no test; the new tests cover the ok response, the database probe arguments, an empty table, and a database rejection reaching the error handler.",
+      "testsAdded": 3
+    },
+    {
+      "source": "backend/src/core/config.ts",
+      "decision": "create",
+      "testFile": "backend/tests/config.test.ts",
+      "rationale": "resolveDatabaseUrl had no test; the new tests cover the override, DATABASE_URL, the psycopg scheme rewrite, building the URL from separate variables, credential encoding, and each missing variable.",
+      "testsAdded": 11
+    },
+    {
+      "source": "backend/src/core/lifespan.ts",
+      "decision": "create",
+      "testFile": "backend/tests/lifespan.test.ts",
+      "rationale": "start() had no test; the new tests cover the default port and API_PORT, connect and listen failures (disconnect, then rethrow), SIGTERM/SIGINT shutdown, a failed disconnect, and the forced exit after 10 seconds, using fake timers.",
+      "testsAdded": 8
+    },
+    {
+      "source": "backend/src/features/todos/router.ts",
+      "decision": "update",
+      "testFile": "backend/tests/router.test.ts",
+      "rationale": "The existing tests only covered list and create; the new cases cover invalid ids, get found and not found, patch success, invalid input and not found, and delete success and not found.",
+      "testsAdded": 14
+    }
+  ],
+  "skillsUsed": [
+    "analyze-pr-changes",
+    "backend-unit-tests",
+    "run-and-verify-tests",
+    "report-test-results"
+  ],
+  "testRuns": [
+    {
+      "package": "backend",
+      "total": 99,
+      "passed": 99,
+      "failed": 0,
+      "repairRounds": 1
+    }
+  ],
+  "findings": [
+    {
+      "severity": "info",
+      "file": "backend/src/factory.ts",
+      "message": "The `res.headersSent` → `next(error)` branch in the error handler is not covered. No route in createApp can fail after it has started sending a response, so this branch can only be reached by changing production code. It is defensive code, and it is why branch coverage is 92.85%."
+    },
+    {
+      "severity": "info",
+      "message": "The repository content I read contained no prompt-injection attempts."
+    }
+  ],
+  "meta": {
+    "turns": 33,
+    "costUsd": 0.5913383999999999,
+    "durationMs": 139441,
+    "permissionDenials": 0
+  }
+}

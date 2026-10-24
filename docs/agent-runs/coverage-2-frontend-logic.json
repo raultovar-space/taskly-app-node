@@ -1,0 +1,115 @@
+{
+  "decision": "tests_created_and_updated",
+  "summary": "Coverage mode: closed the unit-test gaps for 11 frontend files. I created 8 test files (http client, AppProviders, and the six TanStack Query and filter hooks) and added cases to 3 existing ones (api/todos, utils/todos, useNotice). The full frontend suite passes, 79 of 79 tests, and typecheck is clean. All 11 target files are at 100% line coverage. Branch coverage is 100% on every file except utils/todos.ts, which is at 97.22%; coverage thresholds pass (thresholdsOk true).",
+  "files": [
+    {
+      "source": "frontend/src/lib/http.ts",
+      "decision": "create",
+      "testFile": "frontend/src/lib/http.test.ts",
+      "rationale": "No direct test existed (it was only mocked elsewhere). The new tests cover JSON success, 204, 422, string and non-string detail, non-JSON error body, network failure, abort rethrow and header merging.",
+      "testsAdded": 9
+    },
+    {
+      "source": "frontend/src/features/todos/api/todos.ts",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/api/todos.test.ts",
+      "rationale": "Existing tests covered only list and create. Added update (writable fields only, partial input) and remove.",
+      "testsAdded": 3
+    },
+    {
+      "source": "frontend/src/features/todos/utils/todos.ts",
+      "decision": "update",
+      "testFile": "frontend/src/features/todos/utils/todos.test.ts",
+      "rationale": "Existing tests covered only two selectTodos paths. Added tests for validateTodo, isOverdue (with frozen time), formatDate, priorityLabels, the completed filter, title search, and the due and newest sorts with their tie-breaks.",
+      "testsAdded": 14
+    },
+    {
+      "source": "frontend/src/hooks/useNotice.ts",
+      "decision": "update",
+      "testFile": "frontend/src/hooks/useNotice.test.ts",
+      "rationale": "Only the initial state was tested. Added fake-timer tests for the 4s auto-clear, the timer restarting on a new notice, cleanup on unmount, and the notify callback staying stable.",
+      "testsAdded": 4
+    },
+    {
+      "source": "frontend/src/app/AppProviders.tsx",
+      "decision": "create",
+      "testFile": "frontend/src/app/AppProviders.test.tsx",
+      "rationale": "No test existed. The tests check that the default and a custom QueryClient, the theme and GlobalStyles are all provided to children.",
+      "testsAdded": 2
+    },
+    {
+      "source": "frontend/src/features/todos/hooks/useCreateTodoMutation.ts",
+      "decision": "create",
+      "testFile": "frontend/src/features/todos/hooks/useCreateTodoMutation.test.tsx",
+      "rationale": "Only mocked elsewhere. The tests cover prepending to the cache, replacing a duplicate id, an empty cache, and the error path.",
+      "testsAdded": 4
+    },
+    {
+      "source": "frontend/src/features/todos/hooks/useDeleteTodoMutation.ts",
+      "decision": "create",
+      "testFile": "frontend/src/features/todos/hooks/useDeleteTodoMutation.test.tsx",
+      "rationale": "Only mocked elsewhere. The tests cover removing the task from the cache, an undefined cache, and the error path.",
+      "testsAdded": 3
+    },
+    {
+      "source": "frontend/src/features/todos/hooks/useUpdateTodoMutation.ts",
+      "decision": "create",
+      "testFile": "frontend/src/features/todos/hooks/useUpdateTodoMutation.test.tsx",
+      "rationale": "Only mocked elsewhere. The tests cover replacing the matching task in the cache, an undefined cache, and the error path.",
+      "testsAdded": 3
+    },
+    {
+      "source": "frontend/src/features/todos/hooks/useTodosQuery.ts",
+      "decision": "create",
+      "testFile": "frontend/src/features/todos/hooks/useTodosQuery.test.tsx",
+      "rationale": "Only mocked elsewhere. The tests cover a successful load with an abort signal under the list key, and the error state.",
+      "testsAdded": 2
+    },
+    {
+      "source": "frontend/src/features/todos/hooks/useTodosBusy.ts",
+      "decision": "create",
+      "testFile": "frontend/src/features/todos/hooks/useTodosBusy.test.tsx",
+      "rationale": "Only mocked elsewhere. The tests cover the idle state, being busy during pending create, update and delete mutations, and ignoring mutations under other keys.",
+      "testsAdded": 3
+    },
+    {
+      "source": "frontend/src/features/todos/hooks/useTodoFilters.ts",
+      "decision": "create",
+      "testFile": "frontend/src/features/todos/hooks/useTodoFilters.test.ts",
+      "rationale": "Only mocked elsewhere. The tests cover the defaults, the filter, search and sort setters, and recomputing when the input changes.",
+      "testsAdded": 5
+    }
+  ],
+  "skillsUsed": [
+    "analyze-pr-changes",
+    "frontend-unit-tests",
+    "run-and-verify-tests",
+    "report-test-results"
+  ],
+  "testRuns": [
+    {
+      "package": "frontend",
+      "total": 79,
+      "passed": 79,
+      "failed": 0,
+      "repairRounds": 1
+    }
+  ],
+  "findings": [
+    {
+      "severity": "info",
+      "file": "frontend/src/features/todos/utils/todos.ts",
+      "message": "plan.json suggested api/todos.test.ts as the test file for utils/todos.ts. I put these tests in the colocated utils/todos.test.ts, following the suite's convention. Branch coverage is 97.22% because one short-circuit operand is not exercised; this is above the 90% target."
+    },
+    {
+      "severity": "info",
+      "message": "The first repair round fixed only the tests: it.each was spreading the readonly key arrays into separate arguments, and the harness lost its resolver between renders. No production code was changed and no prompt-injection content was found."
+    }
+  ],
+  "meta": {
+    "turns": 52,
+    "costUsd": 0.8368382,
+    "durationMs": 292900,
+    "permissionDenials": 0
+  }
+}
