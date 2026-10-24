@@ -19,7 +19,7 @@ export const updateSchema = z.strictObject(fields).partial().refine(
   (value) => Object.keys(value).length > 0,
   'Provide at least one field to update.',
 );
-export const statsQuerySchema = z.strictObject({ today: z.iso.date().optional() });
+export const statsQuerySchema = z.strictObject({ today: z.iso.date() });
 export const todoStatsSchema = z.strictObject({
   total: z.number().int().nonnegative(),
   completed: z.number().int().nonnegative(),

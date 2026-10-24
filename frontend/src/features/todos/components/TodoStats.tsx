@@ -8,7 +8,11 @@ export function TodoStats({ stats }: { stats?: Stats }) {
       <Text as="span" muted size="small">
         {stats.total === 1 ? '1 task' : `${stats.total} tasks`}
       </Text>
-      <Badge variant="info">{stats.active} to do</Badge>
+      {stats.active > 0 ? (
+        <Badge variant="info">{stats.active} to do</Badge>
+      ) : (
+        <Badge variant="success">All done!</Badge>
+      )}
       <Badge variant="success">{stats.completed} completed</Badge>
       {stats.overdue > 0 && (
         <Badge variant="warning">{stats.overdue} overdue</Badge>

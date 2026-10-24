@@ -19,8 +19,8 @@ export function createTodosRouter(repository: TodoStore) {
   router.get('/stats', async (req, res) => {
     const result = statsQuerySchema.safeParse(req.query);
     if (!result.success) return res.status(422).json({ detail: result.error.issues });
-    const today = result.data.today ?? new Date().toISOString().slice(0, 10);
-    res.json(await repository.stats(today));
+    // The client's calendar day is required: a server-side default would disagree with the UI near midnight.
+    res.json(await repository.stats(result.data.today));
   });
   router.get('/:id', async (req, res) => {
     const todo = await repository.get(Number(res.locals.todoId));

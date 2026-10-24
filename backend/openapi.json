@@ -85,8 +85,8 @@
           {
             "name": "today",
             "in": "query",
-            "required": false,
-            "description": "Reference date (YYYY-MM-DD) for overdue tasks; defaults to the current UTC date.",
+            "required": true,
+            "description": "Reference date (YYYY-MM-DD, the client's calendar day) for overdue tasks.",
             "schema": {
               "type": "string",
               "format": "date"
