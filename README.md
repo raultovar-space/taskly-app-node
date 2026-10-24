@@ -1,5 +1,9 @@
 # Taskly App Node
 
+> **Unit Test Agent:** this repository includes a custom Claude Code agent, reusable skills and an
+> agentic pull-request workflow that create, update and verify unit tests for changed code.
+> See [SOLUTION.md](SOLUTION.md).
+
 ## Setup
 
 ```sh
