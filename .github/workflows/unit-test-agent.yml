@@ -1,0 +1,334 @@
+# Agentic PR workflow: analyse the change set, let unit-test-agent create/update unit tests,
+# verify them independently, commit them to the PR branch and report in the PR.
+#
+# Trust model
+#   analyze  — no secrets, read-only. Deterministic plan; decides whether the agent runs at all.
+#   generate — the ONLY job with the Anthropic credential. Read-only token, no git credentials,
+#              egress allowlist, agent tooling (.claude/, scripts) taken from the BASE branch so a
+#              PR cannot weaken its own guardrails. Output is just a patch + report artifact.
+#   verify   — no secrets. Validates the patch against the test-path allowlist, re-runs typecheck,
+#              tests and coverage before/after on a clean checkout. This is the source of truth.
+#   publish  — write token, but never executes PR code. Commits the verified patch and upserts
+#              one sticky PR comment.
+name: Unit Test Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ['backend/**', 'frontend/**']
+
+permissions: {}
+
+concurrency:
+  group: unit-test-agent-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  CLAUDE_CODE_VERSION: '2.1.310'
+  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  analyze:
+    name: Analyze changes
+    # Fork PRs never receive secrets; drafts and opted-out PRs are skipped.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-unit-test-agent')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      should_run: ${{ steps.plan.outputs.should_run }}
+      packages: ${{ steps.plan.outputs.packages }}
+      bot_commit: ${{ steps.plan.outputs.bot_commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use trusted agent tooling from the base branch
+        run: |
+          rm -rf .claude .github/unit-test-agent
+          git checkout "$BASE_SHA" -- .claude .github/unit-test-agent
+      - name: Build change plan
+        id: plan
+        run: |
+          node .claude/skills/analyze-pr-changes/scripts/changed-files.mjs \
+            --base "$BASE_SHA" --head "$HEAD_SHA" --out agent-artifacts/plan.json > /dev/null
+          # Commits pushed by this workflow must not trigger another generation round.
+          if git log -1 --format=%B "$HEAD_SHA" | grep -qF '[unit-test-agent]'; then
+            echo "bot_commit=true" >> "$GITHUB_OUTPUT"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "bot_commit=false" >> "$GITHUB_OUTPUT"
+            echo "should_run=$(jq -r .shouldRun agent-artifacts/plan.json)" >> "$GITHUB_OUTPUT"
+          fi
+          echo "packages=$(jq -c .packages agent-artifacts/plan.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo '### Change plan'
+            echo '```json'
+            jq '{shouldRun, packages, candidates: [.candidates[] | {path, status, existingTests}], skipped}' agent-artifacts/plan.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plan
+          path: agent-artifacts/plan.json
+          retention-days: 7
+
+  generate:
+    name: Generate tests (agent)
+    needs: analyze
+    if: needs.analyze.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.anthropic.com:443
+            registry.npmjs.org:443
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            *.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+            binaries.prisma.sh:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use trusted agent tooling from the base branch
+        run: |
+          rm -rf .claude .github/unit-test-agent
+          git checkout "$BASE_SHA" -- .claude .github/unit-test-agent
+          git reset -q
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: '*/package-lock.json'
+      - name: Install dependencies (no lifecycle scripts from PR dependencies)
+        env:
+          PACKAGES: ${{ needs.analyze.outputs.packages }}
+        run: |
+          for pkg in $(jq -r '.[]' <<<"$PACKAGES"); do
+            npm ci --prefix "$pkg" --ignore-scripts --no-audit --no-fund
+          done
+          if jq -e 'index("backend")' <<<"$PACKAGES" > /dev/null; then
+            (cd backend && npx --no-install prisma generate)
+          fi
+      - name: Install Claude Code ${{ env.CLAUDE_CODE_VERSION }}
+        run: npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+      - name: Check credentials
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Add an ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN) repository secret to enable the unit-test agent."
+            exit 1
+          fi
+      - name: Run unit-test-agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          MODEL: ${{ vars.UNIT_TEST_AGENT_MODEL || 'claude-opus-5-5' }}
+          MAX_BUDGET_USD: ${{ vars.UNIT_TEST_AGENT_MAX_BUDGET_USD || '5' }}
+        run: .github/unit-test-agent/run-agent.sh pull_request
+      - name: Export patch
+        if: always()
+        run: |
+          mkdir -p agent-artifacts
+          # Capture EVERYTHING the agent changed (not just test paths) so the verify job can
+          # reject policy violations instead of silently dropping them.
+          git add --all -- . ':!.claude' ':!.github/unit-test-agent' ':!.agent-output' ':!agent-artifacts'
+          git diff --cached --binary > agent-artifacts/agent.patch
+          cp .agent-output/plan.json .agent-output/result.json .agent-output/claude.json agent-artifacts/ 2>/dev/null || true
+          git diff --cached --stat
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: agent-output
+          path: agent-artifacts/
+          retention-days: 7
+
+  verify:
+    name: Verify tests (no secrets)
+    needs: [analyze, generate]
+    if: always() && needs.analyze.outputs.should_run == 'true' && needs.generate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use trusted agent tooling from the base branch
+        run: |
+          rm -rf .claude .github/unit-test-agent
+          git checkout "$BASE_SHA" -- .claude .github/unit-test-agent
+          git reset -q
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: agent-output
+          path: ${{ runner.temp }}/agent
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: '*/package-lock.json'
+      - name: Validate patch against the test-path policy
+        run: |
+          mkdir -p verify
+          node .github/unit-test-agent/validate-patch.mjs "$RUNNER_TEMP/agent/agent.patch" --json verify/patch-check.json
+      - name: Install dependencies
+        env:
+          PACKAGES: ${{ needs.analyze.outputs.packages }}
+        run: |
+          for pkg in $(jq -r '.[]' <<<"$PACKAGES"); do
+            npm ci --prefix "$pkg" --ignore-scripts --no-audit --no-fund
+          done
+          if jq -e 'index("backend")' <<<"$PACKAGES" > /dev/null; then
+            (cd backend && npx --no-install prisma generate)
+          fi
+      - name: Baseline (PR head without agent changes)
+        env:
+          PACKAGES: ${{ needs.analyze.outputs.packages }}
+        run: |
+          for pkg in $(jq -r '.[]' <<<"$PACKAGES"); do
+            sources=$(jq -r --arg p "$pkg" '[.candidates[] | select(.package == $p) | .path] | join(",")' "$RUNNER_TEMP/agent/plan.json")
+            node .claude/skills/run-and-verify-tests/scripts/run-tests.mjs --package "$pkg" --typecheck --coverage \
+              ${sources:+--sources "$sources"} --coverage-dir "$RUNNER_TEMP/cov-$pkg-before" --json "verify/$pkg-before.json" > /dev/null || true
+          done
+      - name: Apply agent patch
+        run: |
+          if [ -s "$RUNNER_TEMP/agent/agent.patch" ]; then git apply --whitespace=nowarn "$RUNNER_TEMP/agent/agent.patch"; fi
+          git status --short
+      - name: Check formatting of generated frontend tests
+        run: |
+          files=$(jq -r '[.files[].path | select(startswith("frontend/"))] | join(",")' verify/patch-check.json)
+          if [ -n "$files" ]; then
+            node .claude/skills/run-and-verify-tests/scripts/run-tests.mjs --package frontend --format-check --files "$files" | jq '{format, tests: .tests | {passed, failed}}'
+          fi
+      - name: Typecheck, tests and coverage with agent changes
+        env:
+          PACKAGES: ${{ needs.analyze.outputs.packages }}
+        run: |
+          status=0
+          for pkg in $(jq -r '.[]' <<<"$PACKAGES"); do
+            sources=$(jq -r --arg p "$pkg" '[.candidates[] | select(.package == $p) | .path] | join(",")' "$RUNNER_TEMP/agent/plan.json")
+            node .claude/skills/run-and-verify-tests/scripts/run-tests.mjs --package "$pkg" --typecheck --coverage \
+              ${sources:+--sources "$sources"} --coverage-dir "$RUNNER_TEMP/cov-$pkg-after" --json "verify/$pkg-after.json" \
+              | jq '{package, ok, typecheck: .typecheck.ok, tests: (.tests | {total, passed, failed}), coverage: .coverage.files}' || status=1
+          done
+          exit $status
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: verify-results
+          path: verify/
+          retention-days: 7
+
+  publish:
+    name: Publish results
+    needs: [analyze, generate, verify]
+    if: always() && needs.analyze.result == 'success' && needs.analyze.outputs.bot_commit != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Trusted scripts only; PR code is never executed in this job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.BASE_SHA }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            .claude/hooks
+            .github/unit-test-agent
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.verify.result == 'success'
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          path: pr
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: plan
+          path: artifacts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.generate.result != 'skipped'
+        continue-on-error: true
+        with:
+          name: agent-output
+          path: artifacts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.verify.result != 'skipped'
+        continue-on-error: true
+        with:
+          name: verify-results
+          path: artifacts/verify
+      - name: Commit verified tests to the PR branch
+        id: commit
+        if: needs.verify.result == 'success'
+        working-directory: pr
+        run: |
+          patch="$GITHUB_WORKSPACE/artifacts/agent.patch"
+          if [ ! -s "$patch" ]; then echo "No test changes to commit."; exit 0; fi
+          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+            echo "note=The branch moved while the agent was running; tests were not committed. The next run will regenerate them." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node "$GITHUB_WORKSPACE/trusted/.github/unit-test-agent/validate-patch.mjs" "$patch" > /dev/null
+          git apply --index --whitespace=nowarn "$patch"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "test: add or update unit tests for changed code [unit-test-agent]" \
+            -m "Generated by unit-test-agent and verified in workflow run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
+          git push origin "HEAD:${HEAD_REF}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      - name: Render report
+        env:
+          AGENT_STATUS: ${{ needs.generate.result == 'skipped' && '' || needs.generate.result }}
+          VERIFY_STATUS: ${{ needs.verify.result }}
+          COMMIT_SHA: ${{ steps.commit.outputs.sha }}
+          PUBLISH_NOTE: ${{ steps.commit.outputs.note }}
+          MODEL: ${{ vars.UNIT_TEST_AGENT_MODEL || 'claude-opus-5-5' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          cp artifacts/verify/patch-check.json artifacts/ 2>/dev/null || true
+          node trusted/.github/unit-test-agent/render-report.mjs artifacts > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upsert sticky PR comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('node:fs');
+            const marker = '<!-- unit-test-agent-report -->';
+            const body = fs.readFileSync('report.md', 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find((c) => c.user?.login === 'github-actions[bot]' && c.body?.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+      - name: Fail when verification failed
+        if: needs.generate.result == 'failure' || needs.verify.result == 'failure'
+        run: exit 1

@@ -1,0 +1,60 @@
+{
+  "title": "UnitTestAgentResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "summary", "files", "skillsUsed", "testRuns", "findings"],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["tests_created", "tests_updated", "tests_created_and_updated", "no_tests_needed", "failed"]
+    },
+    "summary": { "type": "string", "maxLength": 1200 },
+    "files": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "decision", "testFile", "rationale", "testsAdded"],
+        "properties": {
+          "source": { "type": "string" },
+          "decision": { "type": "string", "enum": ["create", "update", "none"] },
+          "testFile": { "type": ["string", "null"] },
+          "rationale": { "type": "string", "maxLength": 400 },
+          "testsAdded": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "skillsUsed": { "type": "array", "items": { "type": "string" }, "maxItems": 10 },
+    "testRuns": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["package", "total", "passed", "failed", "repairRounds"],
+        "properties": {
+          "package": { "type": "string", "enum": ["backend", "frontend"] },
+          "total": { "type": "integer" },
+          "passed": { "type": "integer" },
+          "failed": { "type": "integer" },
+          "repairRounds": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["info", "warning", "bug", "security"] },
+          "file": { "type": "string" },
+          "message": { "type": "string", "maxLength": 600 }
+        }
+      }
+    }
+  }
+}
