@@ -55,6 +55,25 @@ it('omits fields absent from a partial update', async () => {
   })
 })
 
+it('fetches statistics for the given day with the abort signal', async () => {
+  const signal = new AbortController().signal
+  const stats = { total: 3, completed: 1, active: 2, overdue: 1 }
+  vi.mocked(request).mockResolvedValue(stats)
+  await expect(todosApi.stats('2026-10-15', signal)).resolves.toEqual(stats)
+  expect(request).toHaveBeenCalledWith('/todos/stats?today=2026-10-15', {
+    signal,
+  })
+})
+
+it('encodes the day in the statistics query string', async () => {
+  vi.mocked(request).mockResolvedValue(undefined)
+  await todosApi.stats('2026-10-15&x=1')
+  expect(request).toHaveBeenCalledWith(
+    '/todos/stats?today=2026-10-15%26x%3D1',
+    { signal: undefined },
+  )
+})
+
 it('deletes a task by id', async () => {
   vi.mocked(request).mockResolvedValue(undefined)
   await expect(todosApi.remove(5)).resolves.toBeUndefined()

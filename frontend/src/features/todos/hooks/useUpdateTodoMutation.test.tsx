@@ -56,6 +56,7 @@ it('keeps the list cache empty when nothing was cached', async () => {
 
 it('leaves the cache untouched when the update fails', async () => {
   client.setQueryData(todoKeys.list, [todoFixture])
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
   vi.mocked(todosApi.update).mockRejectedValue(new Error('Boom'))
   const { result } = renderHook(() => useUpdateTodoMutation(), { wrapper })
   await act(() =>
@@ -64,4 +65,18 @@ it('leaves the cache untouched when the update fails', async () => {
     ).rejects.toThrow('Boom'),
   )
   expect(client.getQueryData(todoKeys.list)).toEqual([todoFixture])
+  expect(invalidate).not.toHaveBeenCalled()
+})
+
+it('invalidates the statistics after updating a task', async () => {
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
+  vi.mocked(todosApi.update).mockResolvedValue(todoFixture)
+  const { result } = renderHook(() => useUpdateTodoMutation(), { wrapper })
+  await act(() =>
+    result.current.mutateAsync({
+      id: todoFixture.id,
+      input: { completed: true },
+    }),
+  )
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: todoKeys.stats })
 })

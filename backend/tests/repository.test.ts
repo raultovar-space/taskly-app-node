@@ -77,6 +77,30 @@ it('deletes tasks and handles missing tasks', async () => {
   expect(await repository.delete(1)).toBe(false);
 });
 
+it('computes task statistics with overdue tasks due before the given day', async () => {
+  const { database, repository } = setup();
+  const count = vi.spyOn(database.todo, 'count').mockResolvedValueOnce(5).mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+  expect(await repository.stats('2026-10-15')).toEqual({ total: 5, completed: 2, active: 3, overdue: 1 });
+  expect(count).toHaveBeenCalledTimes(3);
+  expect(count).toHaveBeenNthCalledWith(1);
+  expect(count).toHaveBeenNthCalledWith(2, { where: { completed: true } });
+  expect(count).toHaveBeenNthCalledWith(3, {
+    where: { completed: false, due_date: { lt: new Date('2026-10-15T00:00:00.000Z') } },
+  });
+});
+
+it('returns zeroed statistics when there are no tasks', async () => {
+  const { database, repository } = setup();
+  vi.spyOn(database.todo, 'count').mockResolvedValue(0);
+  expect(await repository.stats('2026-10-15')).toEqual({ total: 0, completed: 0, active: 0, overdue: 0 });
+});
+
+it('propagates database errors while computing statistics', async () => {
+  const { database, repository } = setup();
+  vi.spyOn(database.todo, 'count').mockRejectedValue(new Error('Database unavailable'));
+  await expect(repository.stats('2026-10-15')).rejects.toThrow('Database unavailable');
+});
+
 it('initializes the todos table once with an idempotent CREATE TABLE statement', async () => {
   const $executeRaw = vi.fn().mockResolvedValue(0);
   await expect(initialize({ $executeRaw } as unknown as Database)).resolves.toBeUndefined();

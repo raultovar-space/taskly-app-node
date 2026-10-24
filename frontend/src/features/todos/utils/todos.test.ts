@@ -4,6 +4,7 @@ import {
   isOverdue,
   priorityLabels,
   selectTodos,
+  toLocalDate,
   validateTodo,
 } from './todos'
 import type { Todo, TodoInput } from '../types'
@@ -149,6 +150,31 @@ describe('isOverdue', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-15T10:00:00'))
     expect(isOverdue({ ...base, ...overrides })).toBe(expected)
+  })
+})
+
+describe('toLocalDate', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it.each([
+    [
+      'pads single-digit months and days',
+      new Date(2026, 0, 5, 23, 59),
+      '2026-01-05',
+    ],
+    [
+      'keeps two-digit months and days',
+      new Date(2026, 11, 31, 0, 0),
+      '2026-12-31',
+    ],
+  ])('%s', (_, date, expected) => {
+    expect(toLocalDate(date)).toBe(expected)
+  })
+
+  it('uses the current local calendar day by default', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 15, 23, 30))
+    expect(toLocalDate()).toBe('2026-10-15')
   })
 })
 

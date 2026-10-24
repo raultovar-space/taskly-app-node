@@ -7,7 +7,9 @@ import { todoFixture } from '../../test/todoFixture'
 import { TodoFilters } from './components/TodoFilters'
 import { TodoList } from './components/TodoList'
 import { TodosHeader } from './components/TodosHeader'
+import { TodoStats } from './components/TodoStats'
 import { useTodoFilters } from './hooks/useTodoFilters'
+import { useTodoStatsQuery } from './hooks/useTodoStatsQuery'
 import { useTodosBusy } from './hooks/useTodosBusy'
 import { useTodosQuery } from './hooks/useTodosQuery'
 import { useUpdateTodoMutation } from './hooks/useUpdateTodoMutation'
@@ -17,6 +19,7 @@ import type { Todo } from './types'
 vi.mock('../../design-system', () => import('../../design-system/mocks'))
 vi.mock('../../hooks/useNotice', () => ({ useNotice: vi.fn() }))
 vi.mock('./hooks/useTodoFilters', () => ({ useTodoFilters: vi.fn() }))
+vi.mock('./hooks/useTodoStatsQuery', () => ({ useTodoStatsQuery: vi.fn() }))
 vi.mock('./hooks/useTodosBusy', () => ({ useTodosBusy: vi.fn() }))
 vi.mock('./hooks/useTodosQuery', () => ({ useTodosQuery: vi.fn() }))
 vi.mock('./hooks/useUpdateTodoMutation', () => ({
@@ -30,6 +33,9 @@ vi.mock('./components/TodosHeader', () => ({
       </button>
     ),
   ),
+}))
+vi.mock('./components/TodoStats', () => ({
+  TodoStats: vi.fn(() => null),
 }))
 vi.mock('./components/TodoFilters', () => ({
   TodoFilters: vi.fn(() => null),
@@ -159,6 +165,25 @@ function setup({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(useTodoStatsQuery).mockReturnValue({
+    data: undefined,
+  } as unknown as ReturnType<typeof useTodoStatsQuery>)
+})
+
+it('passes the loaded statistics to the stats section', () => {
+  const stats = { total: 2, completed: 1, active: 1, overdue: 0 }
+  setup()
+  vi.mocked(useTodoStatsQuery).mockReturnValue({
+    data: stats,
+  } as unknown as ReturnType<typeof useTodoStatsQuery>)
+  render(<TodosPage />)
+  expect(vi.mocked(TodoStats).mock.lastCall![0]).toEqual({ stats })
+})
+
+it('renders the stats section without data while statistics load', () => {
+  setup()
+  render(<TodosPage />)
+  expect(vi.mocked(TodoStats).mock.lastCall![0]).toEqual({ stats: undefined })
 })
 
 it('displays a query failure and resets mutation errors before retrying', async () => {

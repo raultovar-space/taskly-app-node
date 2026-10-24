@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSchema, updateSchema, idSchema, todoSchema } from '../src/features/todos/validators.ts';
+import { createSchema, updateSchema, idSchema, todoSchema, statsQuerySchema, todoStatsSchema } from '../src/features/todos/validators.ts';
 import { todo } from './fixture.ts';
 
 describe('todo validation', () => {
@@ -32,6 +32,25 @@ describe('todo validation', () => {
   it.each(['0', '-1', '1.5', 'abc', '9007199254740992'])('rejects invalid id %s', (id) => {
     expect(idSchema.safeParse(id).success).toBe(false);
   });
+  it.each([{}, { today: '2026-10-15' }, { today: '2024-02-29' }])('accepts a statistics query: %j', (query) => {
+    expect(statsQuerySchema.parse(query)).toEqual(query);
+  });
+  it.each([
+    { today: '2026-02-30' }, { today: '2025-02-29' }, { today: '2026-10-15T00:00:00Z' },
+    { today: '' }, { today: ['2026-10-15'] }, { other: '1' },
+  ])('rejects an invalid statistics query: %j', (query) => {
+    expect(statsQuerySchema.safeParse(query).success).toBe(false);
+  });
+  it('validates the statistics response schema', () => {
+    const stats = { total: 5, completed: 2, active: 3, overdue: 1 };
+    expect(todoStatsSchema.parse(stats)).toEqual(stats);
+    expect(todoStatsSchema.parse({ total: 0, completed: 0, active: 0, overdue: 0 })).toEqual({ total: 0, completed: 0, active: 0, overdue: 0 });
+  });
+  it.each([
+    { total: -1, completed: 0, active: 0, overdue: 0 }, { total: 1.5, completed: 0, active: 0, overdue: 0 },
+    { total: 1, completed: 0, active: 1 }, { total: 1, completed: 0, active: 1, overdue: 0, extra: 1 },
+    { total: '1', completed: 0, active: 1, overdue: 0 },
+  ])('rejects invalid statistics: %j', (value) => expect(todoStatsSchema.safeParse(value).success).toBe(false));
   it('parses positive ids and validates the response schema', () => {
     expect(idSchema.parse('12')).toBe(12);
     expect(todoSchema.parse(todo)).toEqual(todo);
