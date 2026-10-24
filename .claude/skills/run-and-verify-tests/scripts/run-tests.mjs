@@ -73,7 +73,7 @@ const scratch = path.join(root, '.agent-output', `vitest-${pkg}-${process.pid}.j
 mkdirSync(path.dirname(scratch), { recursive: true });
 const coverageDir = path.resolve(root, option('coverage-dir') ?? path.join(pkg, 'coverage'));
 const vitestArgs = ['run', ...testFiles, '--reporter=default', '--reporter=json', `--outputFile.json=${scratch}`];
-if (coverage) vitestArgs.push('--coverage', '--coverage.reporter=json-summary', '--coverage.reporter=text', `--coverage.reportsDirectory=${coverageDir}`);
+if (coverage) vitestArgs.push('--coverage', '--coverage.reporter=json-summary', '--coverage.reporter=text', '--coverage.reportOnFailure', `--coverage.reportsDirectory=${coverageDir}`);
 const vt = runVitest ? run(bin('vitest'), vitestArgs) : null;
 
 let results = null;

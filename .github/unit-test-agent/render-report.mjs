@@ -55,10 +55,11 @@ if (result?.files?.length) {
 }
 
 if (packages.length && Object.values(verify).some((v) => v.after || v.before)) {
-  lines.push('', '### Verification (independent job, no secrets)', '', '| Package | Typecheck | Tests | Coverage thresholds | Total lines (before → after) |', '| --- | --- | --- | --- | --- |');
+  lines.push('', '### Verification (independent job, no secrets)', '', '| Package | Typecheck | Tests before → after | Coverage thresholds | Total lines (before → after) |', '| --- | --- | --- | --- | --- |');
   for (const [pkg, { before, after }] of Object.entries(verify)) {
     const r = after ?? before;
-    const tests = r?.tests ? `${r.tests.ok ? '✅' : '❌'} ${r.tests.passed}/${r.tests.total} passed` : '—';
+    const summary = (t) => (t && t.total !== undefined ? `${t.ok ? '✅' : '❌'} ${t.passed}/${t.total}` : '—');
+    const tests = `${summary(before?.tests)} → ${summary(after?.tests)} passed`;
     const tc = r?.typecheck ? (r.typecheck.ok ? '✅' : '❌') : '—';
     const th = r?.coverage ? (r.coverage.thresholdsOk ? '✅' : '❌') : '—';
     lines.push(`| ${pkg} | ${tc} | ${tests} | ${th} | ${pct(before?.coverage?.total?.lines)} → ${pct(after?.coverage?.total?.lines)} |`);
