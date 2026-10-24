@@ -153,7 +153,8 @@ jobs:
           mkdir -p agent-artifacts
           # Capture EVERYTHING the agent changed (not just test paths) so the verify job can
           # reject policy violations instead of silently dropping them.
-          git add --all -- . ':!.claude' ':!.github/unit-test-agent' ':!.agent-output' ':!agent-artifacts'
+          # (.agent-output is gitignored; naming an ignored path in a pathspec makes git add fail.)
+          git add --all -- . ':!.claude' ':!.github/unit-test-agent' ':!agent-artifacts'
           git diff --cached --binary > agent-artifacts/agent.patch
           cp .agent-output/plan.json .agent-output/result.json .agent-output/claude.json agent-artifacts/ 2>/dev/null || true
           git diff --cached --stat
