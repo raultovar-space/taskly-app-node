@@ -58,10 +58,20 @@ it('starts the list cache when nothing was cached yet', async () => {
 
 it('leaves the cache untouched when creation fails', async () => {
   client.setQueryData(todoKeys.list, [todoFixture])
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
   vi.mocked(todosApi.create).mockRejectedValue(new Error('Boom'))
   const { result } = renderHook(() => useCreateTodoMutation(), { wrapper })
   await act(() =>
     expect(result.current.mutateAsync(todoFixture)).rejects.toThrow('Boom'),
   )
   expect(client.getQueryData(todoKeys.list)).toEqual([todoFixture])
+  expect(invalidate).not.toHaveBeenCalled()
+})
+
+it('invalidates the statistics after creating a task', async () => {
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
+  vi.mocked(todosApi.create).mockResolvedValue(todoFixture)
+  const { result } = renderHook(() => useCreateTodoMutation(), { wrapper })
+  await act(() => result.current.mutateAsync(todoFixture))
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: todoKeys.stats })
 })

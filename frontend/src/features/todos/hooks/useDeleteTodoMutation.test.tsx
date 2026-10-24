@@ -48,10 +48,20 @@ it('keeps the list cache empty when nothing was cached', async () => {
 
 it('leaves the cache untouched when deletion fails', async () => {
   client.setQueryData(todoKeys.list, [todoFixture])
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
   vi.mocked(todosApi.remove).mockRejectedValue(new Error('Boom'))
   const { result } = renderHook(() => useDeleteTodoMutation(), { wrapper })
   await act(() =>
     expect(result.current.mutateAsync(todoFixture.id)).rejects.toThrow('Boom'),
   )
   expect(client.getQueryData(todoKeys.list)).toEqual([todoFixture])
+  expect(invalidate).not.toHaveBeenCalled()
+})
+
+it('invalidates the statistics after deleting a task', async () => {
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
+  vi.mocked(todosApi.remove).mockResolvedValue(undefined)
+  const { result } = renderHook(() => useDeleteTodoMutation(), { wrapper })
+  await act(() => result.current.mutateAsync(todoFixture.id))
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: todoKeys.stats })
 })

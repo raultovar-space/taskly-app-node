@@ -2,10 +2,10 @@ import express from 'express';
 import request from 'supertest';
 import { it, expect, vi } from 'vitest';
 import { createTodosRouter } from '../src/features/todos/router.ts';
-import { todo } from './fixture.ts';
+import { stats, todo } from './fixture.ts';
 
 function setup() {
-  const repository = { list: vi.fn().mockResolvedValue([todo]), create: vi.fn().mockResolvedValue(todo), get: vi.fn(), update: vi.fn(), delete: vi.fn() };
+  const repository = { list: vi.fn().mockResolvedValue([todo]), create: vi.fn().mockResolvedValue(todo), get: vi.fn(), update: vi.fn(), delete: vi.fn(), stats: vi.fn().mockResolvedValue(stats) };
   const app = express();
   app.use(express.json());
   app.use('/api/todos', createTodosRouter(repository));
@@ -30,6 +30,23 @@ it.each([{ title: '  ' }, { title: 'x'.repeat(121) }, { title: 'Task', priority:
     const { app, repository } = setup();
     expect((await request(app).post('/api/todos').send(payload)).status).toBe(422);
     expect(repository.create).not.toHaveBeenCalled();
+  },
+);
+it('returns task statistics for the requested day', async () => {
+  const { app, repository } = setup();
+  const response = await request(app).get('/api/todos/stats?today=2026-10-15');
+  expect(response.status).toBe(200);
+  expect(response.body).toEqual(stats);
+  expect(repository.stats).toHaveBeenCalledWith('2026-10-15');
+  expect(repository.get).not.toHaveBeenCalled();
+});
+it.each(['', 'today=2026-02-30', 'today=2026-10-15T00:00:00Z', 'today=yesterday', 'other=1'])(
+  'rejects invalid statistics query %s without calling the repository', async (query) => {
+    const { app, repository } = setup();
+    const response = await request(app).get(`/api/todos/stats?${query}`);
+    expect(response.status).toBe(422);
+    expect(Array.isArray(response.body.detail)).toBe(true);
+    expect(repository.stats).not.toHaveBeenCalled();
   },
 );
 it.each(['abc', '0', '-1', '1.5', '9007199254740992'])('rejects an invalid id %s with 422', async (id) => {
