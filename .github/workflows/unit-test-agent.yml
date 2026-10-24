@@ -90,6 +90,14 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check credentials
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Add an ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN) repository secret to enable the unit-test agent."
+            exit 1
+          fi
       - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: block
@@ -132,14 +140,6 @@ jobs:
           fi
       - name: Install Claude Code ${{ env.CLAUDE_CODE_VERSION }}
         run: npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
-      - name: Check credentials
-        env:
-          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$HAS_KEY" != "true" ]; then
-            echo "::error::Add an ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN) repository secret to enable the unit-test agent."
-            exit 1
-          fi
       - name: Run unit-test-agent
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
